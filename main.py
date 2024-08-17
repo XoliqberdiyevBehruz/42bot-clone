@@ -1,5 +1,7 @@
+import json
 import os
 import django
+from django.core.cache import cache
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, ConversationHandler, CallbackContext, Filters
 import psycopg2
@@ -13,6 +15,17 @@ from django.utils import timezone
 conn = psycopg2.connect(dbname='drf_bot', user='postgres', password='20090912', host='localhost')
 cursor = conn.cursor()
 PHONE, MAIN_MENU = 0, 1
+
+
+def get_cached_user_confirmation(code):
+    cache_key = f'user_confirm_{code}'
+    cache_data = cache.get(cache_key)
+    if cache_data:
+        cache_data = json.loads(cache_data)
+        user = User.objects.get(id=cache_data['user_id'])
+        expiration_time = cache_data['expiration_time']
+        return UserConfirm(user=user, code=cache_data['code'], expiration_time=expiration_time)
+    return None
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -33,6 +46,8 @@ def start(update: Update, context: CallbackContext) -> int:
 def phone(update: Update, context: CallbackContext) -> int:
     user_id = update.message.from_user.id
     username = update.message.from_user.username
+    if not username:
+        username = update.message.from_user.first_name or update.message.from_user.last_name
     phone_number = update.message.contact.phone_number
     password = 'sdjkbdksjcdkjbcwdkljc'
     User.objects.create_user(username=username, password=password, telegram_id=user_id, phone=phone_number)
@@ -48,14 +63,13 @@ def phone(update: Update, context: CallbackContext) -> int:
 def main_menu(update: Update, context: CallbackContext) -> int:
     user_id = update.message.from_user.id
     user = User.objects.filter(telegram_id=user_id).first()
-    code_obj = UserConfirm.objects.filter(user=user).first()
+    user_confirm = get_cached_user_confirmation(user.generate_code())
+    code = user_confirm.code
+    expiration_time = user_confirm.expiration_time
 
-    if code_obj:
-        if code_obj.expiration_time < timezone.now():
-            code_obj.delete()
-            code = user.generate_code()
-        else:
-            code = code_obj.code
+    if code and expiration_time:
+        cache.delete(f'user_confirm_{code}')
+        code = user.generate_code()
     else:
         code = user.generate_code()
 
@@ -65,7 +79,7 @@ def main_menu(update: Update, context: CallbackContext) -> int:
 
 
 def main() -> None:
-    updater = Updater('TOKEN') # Your bot token
+    updater = Updater('7245229622:AAHYLNNq418S6z1b_ayPOHG4OfwTg5VtX-A')
     dispatcher = updater.dispatcher
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],

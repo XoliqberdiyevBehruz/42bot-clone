@@ -1,9 +1,11 @@
 import random
 from datetime import timedelta
+from django.core.cache import cache
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+import json
 
 
 class User(AbstractUser):
@@ -16,7 +18,14 @@ class User(AbstractUser):
 
     def generate_code(self):
         code = ''.join([str(random.randint(0, 100) % 10) for _ in range(6)])
-        UserConfirm.objects.create(user=self, code=code, expiration_time=timezone.now() + timedelta(minutes=5))
+        expiration_time = timezone.now() + timedelta(minutes=5)
+        cache_key = f'user_confirm_{code}'
+        cache_data = {
+            'user_id': self.id,
+            'code': code,
+            'expiration_time': expiration_time.isoformat()
+        }
+        cache.set(cache_key, json.dumps(cache_data), timeout=300)
         return code
 
     def save(self, *args, **kwargs):
