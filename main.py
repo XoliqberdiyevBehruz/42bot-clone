@@ -65,7 +65,7 @@ def main_menu(update: Update, context: CallbackContext) -> int:
 
 
 def main() -> None:
-    updater = Updater('7245229622:AAHYLNNq418S6z1b_ayPOHG4OfwTg5VtX-A')
+    updater = Updater('TOKEN') # Your bot token
     dispatcher = updater.dispatcher
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
